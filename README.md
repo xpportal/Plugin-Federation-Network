@@ -22,7 +22,7 @@ The Plugin Federation Network (PFN) is a decentralized system that enables indep
 Before setting up a federation node, ensure you have:
 
 - A Cloudflare account with Workers and R2 enabled
-- An existing Plugin Publisher instance ([See Plugin Publisher documentation](https://github.com/xpportal/Plugin-Publisher)
+- An existing Plugin Publisher instance ([See Plugin Publisher Federated Branch documentation](https://github.com/xpportal/Plugin-Publisher/tree/federated-option))
 - [Wrangler CLI](https://developers.cloudflare.com/workers/wrangler/get-started/) installed
 - Node.js 18 or later
 
