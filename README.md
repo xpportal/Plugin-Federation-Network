@@ -2,7 +2,7 @@
 
 A decentralized plugin distribution network that connects independent plugin publishers into a federated ecosystem.
 
-![Plugin Federation Demo Image](../docs/assets/fedplugins.jpg)
+![Plugin Federation Demo Image](./docs/assets/fedplugins.jpg)
 
 ## Overview
 
