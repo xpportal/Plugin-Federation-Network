@@ -72,7 +72,7 @@ graph TD
     B[Plugin Publisher B] -->|Registers| F
     F -->|Verifies & Mirrors| R[(R2 Storage)]
     F -->|Manages State| D[(Durable Objects)]
-    F -->|Auth & Temp Data| K[(KV Storage)]
+    F -->|Temp Data| K[(KV Storage)]
     C[Plugin Consumer] -->|Fetches| F
     F -->|Health Checks| A
     F -->|Health Checks| B
