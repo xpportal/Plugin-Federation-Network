@@ -1,4 +1,4 @@
-# Plugin Federation Network (PFN) - ⚠️ EXTREMELY FIRST DRAFT NOT PRODUCTION READY ⚠️
+# Plugin Federation Network (PFN) - ⚠️ BETA - USE WITH CAUTION ⚠️
 
 A decentralized plugin distribution network that connects independent plugin publishers into a federated ecosystem.
 
@@ -6,15 +6,13 @@ A decentralized plugin distribution network that connects independent plugin pub
 
 ## Overview
 
-Again caution, i wrote these docs in a much earlier state so some stuff may be off and using hacky workarounds to get a proof of concept running. Do not use this in production yet. I'm going to bed...zzzzzz
-
 The Plugin Federation Network (PFN) is a decentralized system that enables independent plugin publishers to form a network of trusted sources, share plugins, and maintain a distributed plugin ecosystem. Built on Cloudflare Workers and Durable Objects, PFN provides:
 
 - Decentralized plugin distribution
 - Source verification and trust scoring
 - Plugin mirroring and caching
 - Cryptographic verification of plugin authenticity
-- Selective subscription and filtering
+- Activity monitoring and version tracking
 - Health monitoring and synchronization
 
 ## Prerequisites
@@ -57,14 +55,27 @@ Before setting up a federation node, ensure you have:
    wrangler secret put FEDERATION_PUBLIC_KEY
    ```
 
+4. Set up initial admin access:
+   ```bash
+   # Generate a master admin key
+   wrangler secret put MASTER_KEY
+   
+   # Use the master key to create additional admin keys via the API
+   curl -X POST https://your-federation.workers.dev/federation/create-admin-key \
+     -H "Authorization: Bearer YOUR_MASTER_KEY" \
+     -H "Content-Type: application/json" \
+     -d '{"description": "Admin Console Access"}'
+   ```
+
 ## Architecture
 
 The federation network consists of several components:
 
-1. **Federation Node**: A Cloudflare Worker that manages plugin sources and distribution
-2. **Federation Durable Object**: Maintains source registry and handles synchronization
+1. **Federation Worker**: Routes requests and handles high-level operations
+2. **Federation Durable Object**: Manages source registry and handles synchronization
 3. **R2 Storage**: Stores mirrored plugin files
-4. **KV Storage**: Manages temporary state
+4. **KV Storage**: Manages API keys and temporary state
+5. **SQLite Database**: Stores federation state and relationships
 
 ```mermaid
 graph BT
@@ -95,6 +106,27 @@ graph BT
         DO -.->|"Store Files"| R2:::worker
     end
 ```
+
+## API Endpoints
+
+### Administrative Endpoints
+- `POST /federation/create-admin-key`: Generate new admin API key
+- `POST /federation/add-source`: Register new plugin source
+- `GET /federation/sources`: List all registered sources
+- `POST /federation/verify-source`: Manually trigger source verification
+- `GET /federation/activity`: Get federation activity feed
+
+### Source Management
+- `POST /federation/update-source`: Update source information
+- `POST /federation/subscribe`: Subscribe to a source
+
+### Web Interface
+The federation node includes a built-in administrative interface accessible at the root URL (`/`). This interface provides:
+- Source management
+- Activity monitoring
+- Version tracking
+- Health status overview
+- Subscription management
 
 ## Source Management
 
@@ -152,90 +184,24 @@ sequenceDiagram
 ### Trust Scoring
 
 Sources are assigned trust scores based on:
-
 - Successful verifications
 - Uptime and response time
 - Plugin signature validity
 - Federation age
 - Number of subscribers
 
-## Plugin Mirroring
+## Version Tracking and Activity Feed
 
-### Mirroring Process
+The federation node maintains an activity feed that tracks:
+- Plugin version updates
+- Source verifications
+- Federation events
+- Health status changes
 
-1. Source plugins are discovered via the `/author-data` endpoint
-2. Plugin files are downloaded using the source's asset naming scheme
-3. Files are verified against provided signatures
-4. Verified plugins are stored in R2 with metadata
-
-### Asset Naming Scheme
-
-Sources must provide their asset information via the `/federation-info` endpoint:
-
-```json
-{
-  "assetInfo": {
-    "domain": "https://assets.example.com",
-    "namingScheme": "plugins/author/slug/slug.zip"
-  }
-}
-```
-
-## Subscription Management
-
-### Subscribing to Sources
-
+Activity can be monitored via the web interface or API:
 ```bash
-curl -X POST https://your-federation.workers.dev/federation/subscribe \
-  -H "Authorization: Bearer YOUR_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "sourceId": "author@plugins.example.com",
-    "filters": {
-      "tags": ["utilities", "productivity"]
-    }
-  }'
-```
-
-### Sync Process
-
-```mermaid
-sequenceDiagram
-    participant C as Client
-    participant W as Worker
-    participant DO as Federation DO
-    participant PP as Plugin Publisher
-    participant R2 as R2 Storage
-    participant SQL as SQLite DB
-
-    C->>W: POST /federation/subscribe
-    W->>DO: Handle Subscribe Request
-    
-    DO->>SQL: Check Source Status
-    
-    alt Source Verified
-        DO->>PP: GET /author-data
-        PP-->>DO: Return Plugin List
-        
-        loop For Each Plugin
-            DO->>DO: Apply Subscription Filters
-            
-            alt Plugin Matches Filters
-                DO->>PP: Download Plugin
-                DO->>DO: Verify Plugin Signature
-                DO->>R2: Store Plugin File
-                DO->>SQL: Record in mirrored_plugins
-                DO->>SQL: Update version_updates
-            end
-        end
-        
-        DO->>SQL: Record Subscription
-        DO->>SQL: Update Last Sync Time
-    else Source Not Verified
-        DO-->>W: Return Error
-    end
-    
-    W-->>C: Return Subscription Status
+curl -X GET https://your-federation.workers.dev/federation/activity \
+  -H "Authorization: Bearer YOUR_API_KEY"
 ```
 
 ## Database Schema
@@ -257,16 +223,31 @@ CREATE TABLE sources (
 );
 ```
 
-### Subscriptions Table
+### Source Verifications Table
 ```sql
-CREATE TABLE subscriptions (
+CREATE TABLE source_verifications (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   source_id TEXT NOT NULL,
-  subscriber TEXT NOT NULL,         
-  filters TEXT,                     
-  created_at INTEGER DEFAULT (unixepoch()),
-  FOREIGN KEY(source_id) REFERENCES sources(id),
-  UNIQUE(source_id, subscriber)
+  verifier TEXT NOT NULL,
+  verification_type TEXT NOT NULL,
+  result TEXT NOT NULL,
+  details TEXT,
+  verified_at INTEGER DEFAULT (unixepoch()),
+  FOREIGN KEY(source_id) REFERENCES sources(id)
+);
+```
+
+### Version Updates Table
+```sql
+CREATE TABLE version_updates (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  plugin_id TEXT NOT NULL,
+  source_id TEXT NOT NULL,
+  old_version TEXT NOT NULL,
+  new_version TEXT NOT NULL,
+  update_time INTEGER DEFAULT (unixepoch()),
+  notified BOOLEAN DEFAULT FALSE,
+  FOREIGN KEY(source_id) REFERENCES sources(id)
 );
 ```
 
@@ -286,64 +267,6 @@ CREATE TABLE mirrored_plugins (
   UNIQUE(plugin_id, source_id, version)
 );
 ```
-
-## API Endpoints
-
-### Administrative Endpoints
-- `POST /federation/create-admin-key`: Generate new admin API key
-- `POST /federation/add-source`: Register new plugin source
-- `GET /federation/sources`: List all registered sources
-- `POST /federation/verify-source`: Manually trigger source verification
-
-### Source Management
-- `POST /federation/update-source`: Update source information
-- `POST /federation/subscribe`: Subscribe to a source
-- `GET /federation/source-status`: Get source health and sync status
-
-### Plugin Access
-- `GET /federation/plugins`: List available plugins
-- `GET /federation/download`: Download mirrored plugin
-- `GET /federation/verify`: Verify plugin signature
-
-## Security Considerations
-
-### API Key Management
-- Admin keys prefixed with `fadmin_`
-- Keys stored in KV with metadata
-- Regular key rotation recommended
-- Rate limiting on key creation
-
-### Source Verification
-- Ed25519 signature verification
-- Challenge-response ownership proof
-- Regular health checks
-- Trust score adjustment based on reliability
-
-### Plugin Integrity
-- Original signatures preserved
-- Additional federation layer signing
-- Verification against source public key
-- Immutable version storage
-
-## Best Practices
-
-1. **Source Management**
-   - Regularly verify source health
-   - Monitor trust scores
-   - Clean up inactive sources
-   - Update asset schemes when needed
-
-2. **Plugin Mirroring**
-   - Set appropriate storage quotas
-   - Monitor storage usage
-   - Implement cleanup policies
-   - Verify all signatures
-
-3. **Network Health**
-   - Monitor node performance
-   - Track synchronization status
-   - Maintain backup nodes
-   - Regular security audits
 
 ## Configuration
 
@@ -372,45 +295,67 @@ binding = "FEDERATION_KV"
 id = "your-kv-namespace-id"
 ```
 
-## Monitoring and Maintenance
+## Security Considerations
 
-### Health Metrics
-- Source response times
-- Sync success rates
-- Storage usage
-- API key usage
-- Error rates
+### API Key Management
+- Admin keys prefixed with `fadmin_`
+- Keys stored in KV with metadata
+- Master key for initial setup
+- Regular key rotation recommended
 
-### Regular Tasks
-- Source verification
-- Trust score updates
-- Storage cleanup
-- Key rotation
-- Schema migrations
+### Source Verification
+- Ed25519 signature verification
+- Challenge-response ownership proof
+- Regular health checks
+- Trust score adjustments
 
-## Troubleshooting
+### Plugin Integrity
+- Original signatures preserved
+- Federation layer verification
+- Immutable version storage
+- Version update tracking
 
-### Common Issues
+## Best Practices
 
-1. **Source Verification Fails**
-   - Check source URL accessibility
-   - Verify public key format
-   - Confirm federation-info endpoint
-   - Check signature algorithm
+2. **Monitoring**
+   - Check activity feed regularly
+   - Monitor source health status
+   - Track version updates
+   - Review verification history
 
-2. **Plugin Mirroring Issues**
-   - Verify asset naming scheme
-   - Check storage permissions
-   - Confirm signature validity
-   - Monitor storage quotas
-   - Check that scheduler is running in nodes.
+3. **Network Health**
+   - Monitor node performance
+   - Track synchronization status
+   - Maintain backup nodes
+   - Regular security audits
+### Plugin Integrity
+- Original signatures preserved
+- Federation layer verification
+- Immutable version storage
+- Version update tracking
 
-3. **Subscription Problems**
-   - Check source status
-   - Verify filter syntax
-   - Monitor sync logs
-   - Check consumer permissions
+## Best Practices
+
+1. **Source Management**
+   - Regularly verify source health
+   - Monitor trust scores
+   - Track version updates
+   - Update asset schemes when needed
+
+2. **Monitoring**
+   - Check activity feed regularly
+   - Monitor source health status
+   - Track version updates
+   - Review verification history
+
+3. **Network Health**
+   - Monitor node performance
+   - Track synchronization status
+   - Maintain backup nodes
+   - Regular security audits
 
 ## Contributing
 
 Contributions are welcome soon...let me just vibe with this for a bit.
+
+
