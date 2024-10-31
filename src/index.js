@@ -65,7 +65,23 @@ export default {
 						headers: request.headers
 					}));
 
-
+				case 'federation/activity':
+					if (!await authenticateRequest(request, env)) {
+						return new Response('Unauthorized', { status: 401 });
+					}
+					return federation.fetch(new Request('http://federation/activity', {
+						method: 'GET',
+						headers: {
+							...Object.fromEntries(request.headers),
+							'Content-Type': 'application/json'
+						}
+					}));
+				//@todo debug if this is needed in the future. may be to true up versions if someone decrements the version number.
+				// case 'sync-versions':
+				// 	return federation.fetch(new Request('http://federation/sync-versions', {
+				// 		method: request.method,
+				// 		headers: request.headers
+				// 	}));
 				case 'federation/subscribe':
 					if (!await authenticateRequest(request, env)) {
 						return new Response('Unauthorized', { status: 401 });
@@ -127,8 +143,6 @@ export default {
 
 // Auth helper
 async function validateApiKey(apiKey, env) {
-	console.log('Validating API key:', apiKey, env);
-	// For testing
 	if (apiKey === env.SECRET_KEY) return true;
 
 	// Check admin keys in KV
@@ -332,12 +346,79 @@ function getAdminHTML() {
 					<tbody id="sourcesTable"></tbody>
 				  </table>
 				</div>
+				<div class="mt-8">
+					<h3 class="text-lg font-medium mb-4">Federation Activity</h3>
+					<div id="activityFeed" class="space-y-4"></div>
+				</div>
 			  </div>
 			</div>
 		  </div>
 		</div>
   
 		<script>
+		async function refreshActivityFeed() {
+			try {
+				const response = await fetch('/federation/activity', {
+				headers: {
+					'Authorization': 'Bearer ' + federationConfig.apiKey
+				}
+				});
+				
+				if (!response.ok) throw new Error('Failed to fetch activity');
+				
+				const activities = await response.json();
+				updateActivityFeed(activities);
+			} catch (error) {
+				console.error('Error refreshing activity:', error);
+			}
+			}
+
+			function updateActivityFeed(activities) {
+			const feed = document.getElementById('activityFeed');
+			feed.innerHTML = activities.map(activity => {
+				const time = new Date(activity.timestamp * 1000).toLocaleString();
+				
+				if (activity.type === 'version_update') {
+				return \`
+					<div class="bg-gray-800 p-4 rounded">
+					<div class="flex items-center">
+						<span class="text-green-400">⟳</span>
+						<span class="ml-2">
+						<strong>\${activity.plugin_name}</strong> updated from 
+						<code class="px-1 bg-gray-700 rounded">\${activity.old_version}</code> to 
+						<code class="px-1 bg-green-700 rounded">\${activity.new_version}</code>
+						by \${activity.source_username}
+						</span>
+					</div>
+					<div class="text-xs text-gray-400 mt-1">\${time}</div>
+					</div>
+				\`;
+				}
+				
+				if (activity.type === 'source_verification') {
+				return \`
+					<div class="bg-gray-800 p-4 rounded">
+					<div class="flex items-center">
+						<span class="text-blue-400">✓</span>
+						<span class="ml-2">
+						Source <strong>\${activity.source_username}</strong> verified
+						</span>
+					</div>
+					<div class="text-xs text-gray-400 mt-1">\${time}</div>
+					</div>
+				\`;
+				}
+			}).join('');
+			}
+
+			// Update refresh interval to include activity
+			setInterval(() => {
+			if (federationConfig.apiKey) {
+				refreshSourcesList();
+				refreshActivityFeed();
+			}
+			}, 30000); // Every 30 seconds
+
 		  // Federation management
 		  let federationConfig = JSON.parse(localStorage.getItem('federationConfig') || JSON.stringify({
 			apiKey: '',

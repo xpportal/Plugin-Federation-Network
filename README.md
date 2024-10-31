@@ -68,14 +68,33 @@ The federation network consists of several components:
 
 ```mermaid
 graph TD
-    A[Plugin Publisher A] -->|Registers| F[Federation Node]
-    B[Plugin Publisher B] -->|Registers| F
-    F -->|Verifies & Mirrors| R[(R2 Storage)]
-    F -->|Manages State| D[(Durable Objects)]
-    F -->|Temp Data| K[(KV Storage)]
-    C[Plugin Consumer] -->|Fetches| F
-    F -->|Health Checks| A
-    F -->|Health Checks| B
+    classDef worker fill:#f9a,stroke:#333,stroke-width:2px
+    classDef do fill:#afd,stroke:#333,stroke-width:2px
+    classDef storage fill:#acf,stroke:#333,stroke-width:2px
+    classDef external fill:#ddd,stroke:#333,stroke-width:2px
+
+    W[Federation Worker]:::worker
+    DO[Federation DO]:::do
+    R2[(R2 Storage)]:::storage
+    KV[(KV Storage)]:::storage
+    SQL[(SQLite DB)]:::storage
+    PP[Plugin Publishers]:::external
+    C[Clients]:::external
+
+    C -->|"1. API Requests"| W
+    W -->|"2. Auth & Route"| DO
+    DO -->|"3. Store Data"| SQL
+    DO -->|"4. Mirror Plugins"| R2
+    DO -->|"5. Cache Keys"| KV
+    DO -->|"6. Verify & Sync"| PP
+    PP -->|"7. Plugin Data"| DO
+
+    subgraph "Core Operations"
+        direction TB
+        W -->|"Handle Routes"| DO
+        DO -->|"Manage State"| SQL
+        DO -->|"Store Files"| R2
+    end
 ```
 
 ## Source Management
@@ -99,12 +118,36 @@ curl -X POST https://your-federation.workers.dev/federation/add-source \
 
 ```mermaid
 sequenceDiagram
-    Federation->>Plugin Publisher: Request /federation-info
-    Plugin Publisher-->>Federation: Return capabilities & asset info
-    Federation->>Plugin Publisher: POST /verify-ownership
-    Plugin Publisher-->>Federation: Return signed challenge
-    Federation->>Federation: Verify signature with public key
-    Federation->>Federation: Update source status & trust score
+    participant Client
+    participant Worker
+    participant DO as Federation DO
+    participant PP as Plugin Publisher
+    participant SQL as SQLite DB
+
+    Client->>Worker: POST /federation/verify-source
+    Worker->>Worker: Authenticate Request
+    Worker->>DO: Forward Verification Request
+    
+    DO->>PP: GET /federation-info
+    PP-->>DO: Return Capabilities & Asset Info
+    
+    DO->>SQL: Store Asset Info
+    
+    DO->>PP: POST /verify-ownership
+    Note right of DO: Challenge-Response Auth
+    PP-->>DO: Return Signed Challenge
+    
+    DO->>DO: Verify Ed25519 Signature
+    
+    alt Verification Successful
+        DO->>SQL: Update Source Status & Trust Score
+        DO->>SQL: Record Verification Success
+    else Verification Failed
+        DO->>SQL: Record Verification Failure
+    end
+    
+    DO-->>Worker: Return Verification Result
+    Worker-->>Client: Return Response
 ```
 
 ### Trust Scoring
@@ -159,13 +202,41 @@ curl -X POST https://your-federation.workers.dev/federation/subscribe \
 
 ```mermaid
 sequenceDiagram
-    Consumer->>Federation: Subscribe to source
-    Federation->>Plugin Publisher: Fetch /author-data
-    Plugin Publisher-->>Federation: Return plugin list
-    Federation->>Federation: Filter plugins by criteria
-    Federation->>Plugin Publisher: Download matching plugins
-    Federation->>R2: Store mirrored plugins
-    Federation-->>Consumer: Return subscription status
+    participant C as Client
+    participant W as Worker
+    participant DO as Federation DO
+    participant PP as Plugin Publisher
+    participant R2 as R2 Storage
+    participant SQL as SQLite DB
+
+    C->>W: POST /federation/subscribe
+    W->>DO: Handle Subscribe Request
+    
+    DO->>SQL: Check Source Status
+    
+    alt Source Verified
+        DO->>PP: GET /author-data
+        PP-->>DO: Return Plugin List
+        
+        loop For Each Plugin
+            DO->>DO: Apply Subscription Filters
+            
+            alt Plugin Matches Filters
+                DO->>PP: Download Plugin
+                DO->>DO: Verify Plugin Signature
+                DO->>R2: Store Plugin File
+                DO->>SQL: Record in mirrored_plugins
+                DO->>SQL: Update version_updates
+            end
+        end
+        
+        DO->>SQL: Record Subscription
+        DO->>SQL: Update Last Sync Time
+    else Source Not Verified
+        DO-->>W: Return Error
+    end
+    
+    W-->>C: Return Subscription Status
 ```
 
 ## Database Schema
