@@ -67,33 +67,32 @@ The federation network consists of several components:
 4. **KV Storage**: Manages temporary state
 
 ```mermaid
-graph TD
-    classDef worker fill:#f9a,stroke:#333,stroke-width:2px
-    classDef do fill:#afd,stroke:#333,stroke-width:2px
-    classDef storage fill:#acf,stroke:#333,stroke-width:2px
-    classDef external fill:#ddd,stroke:#333,stroke-width:2px
-
+graph BT
+    classDef worker fill:#8b5cf6,color:#191919, stroke:#333,stroke-width:2px
+    classDef do fill:#d926aa,stroke:#333,stroke-width:2px
+    classDef storage fill:#d926aa,stroke:#333,stroke-width:2px
+    classDef kv fill:#ad6509,stroke:#333,stroke-width:2px
+    classDef external fill:#a2ff00,stroke:#191919, color:#191919, stroke-width:2px
+    subgraph CoreOps["Core Operations"]
     W[Federation Worker]:::worker
     DO[Federation DO]:::do
     R2[(R2 Storage)]:::storage
-    KV[(KV Storage)]:::storage
+    KV[(KV Storage)]:::kv
     SQL[(SQLite DB)]:::storage
     PP[Plugin Publishers]:::external
     C[Clients]:::external
 
-    C -->|"1. API Requests"| W
-    W -->|"2. Auth & Route"| DO
-    DO -->|"3. Store Data"| SQL
-    DO -->|"4. Mirror Plugins"| R2
-    DO -->|"5. Cache Keys"| KV
-    DO -->|"6. Verify & Sync"| PP
-    PP -->|"7. Plugin Data"| DO
+    C -->|"1 - API Requests"| W
+    W -->|"2 - Auth & Route"| DO
+    DO -->|"3 - Store Data"| SQL
+    DO -->|"4 - Mirror Plugins"| R2
+    DO -->|"5 - Cache Keys"| KV
+    DO -->|"6 - Verify & Sync"| PP
+    PP -->|"7 - Plugin Data"| DO
 
-    subgraph "Core Operations"
-        direction TB
-        W -->|"Handle Routes"| DO
-        DO -->|"Manage State"| SQL
-        DO -->|"Store Files"| R2
+        W -.->|"Handle Routes"| DO
+        DO -.->|"Manage State"| SQL
+        DO -.->|"Store Files"| R2:::worker
     end
 ```
 
