@@ -1,12 +1,12 @@
 #Scratch Pad For Dreaming...
 
 ```mermaid
-graph TD
+graph LR
     classDef federation fill:#8b5cf6,color:white,stroke:#333,stroke-width:2px
-    classDef publisher fill:#22c55e,color:#191919,stroke:#333,stroke-width:2px
+    classDef publisher fill:#a2ff00,color:#white,stroke:#333,stroke-width:2px
     classDef consumer fill:#0ea5e9,color:white,stroke:#333,stroke-width:2px
     classDef marketplace fill:#f59e0b,color:#191919,stroke:#333,stroke-width:2px
-    classDef standalone fill:#ef4444,color:white,stroke:#333,stroke-width:2px
+    classDef standalone fill:#a2ff00,color:#191919,stroke:#333,stroke-width:2px
 
     subgraph Federation["Plugin Federation Network"]
         FN1[Federation Node 1]:::federation
@@ -24,7 +24,7 @@ graph TD
         PP3[Theme Publisher]:::publisher
     end
 
-    subgraph Standalone["Standalone Plugin Publishers"]
+    subgraph Standalone["Plugin Publisher Instances"]
         SP1[Independent Publisher 1]:::standalone
         SP2[Independent Publisher 2]:::standalone
         SP3[Independent Publisher 3]:::standalone
@@ -42,6 +42,7 @@ graph TD
         C2[eCommerce Platform]:::consumer
         C3[Development Agency]:::consumer
         C4[Theme Marketplace]:::marketplace
+		C5[WordPress Site]:::consumer
     end
 
     %% Standalone connections
@@ -57,6 +58,7 @@ graph TD
     %% Federation consumer connections
     FN1 -->|"Subscribe"| C3
     FN2 -->|"Subscribe"| C4
+    FN2 -->|"Subscribe"| C5
     
     %% Cross-node syncing
     PP1 -.->|"Mirror"| FN2
