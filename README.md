@@ -97,6 +97,8 @@ Before setting up a federation node, ensure you have:
 - [Wrangler CLI](https://developers.cloudflare.com/workers/wrangler/get-started/) installed
 - Node.js 18 or later
 
+Plugin Publisher Integration Details : https://github.com/xpportal/plugin-federation-network/blob/main/INTEGRATIONS.md
+
 ## Quick Start
 
 1. Create a new federation node:
