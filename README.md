@@ -7,7 +7,7 @@ A decentralized plugin distribution network that connects independent plugin pub
 ```mermaid
 graph LR
     classDef federation fill:#8b5cf6,color:white,stroke:#333,stroke-width:2px
-    classDef publisher fill:#a2ff00,color:#white,stroke:#333,stroke-width:2px
+    classDef publisher fill:#a2ff00,color:#black,stroke:#333,stroke-width:2px
     classDef consumer fill:#0ea5e9,color:white,stroke:#333,stroke-width:2px
     classDef marketplace fill:#f59e0b,color:#191919,stroke:#333,stroke-width:2px
     classDef standalone fill:#a2ff00,color:#191919,stroke:#333,stroke-width:2px
