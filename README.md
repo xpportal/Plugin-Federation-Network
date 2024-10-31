@@ -119,6 +119,12 @@ graph BT
 ### Source Management
 - `POST /federation/update-source`: Update source information
 - `POST /federation/subscribe`: Subscribe to a source
+- `GET /federation/source-status`: Get source health and sync status
+
+### Plugin Access
+- `GET /federation/plugins`: List available plugins
+- `GET /federation/download`: Download mirrored plugin
+- `GET /federation/verify`: Verify plugin signature
 
 ### Web Interface
 The federation node includes a built-in administrative interface accessible at the root URL (`/`). This interface provides:
@@ -203,6 +209,94 @@ Activity can be monitored via the web interface or API:
 curl -X GET https://your-federation.workers.dev/federation/activity \
   -H "Authorization: Bearer YOUR_API_KEY"
 ```
+
+## Plugin Mirroring
+### Mirroring Process
+1. Source plugins are discovered via the `/author-data` endpoint
+2. Plugin files are downloaded using the source's asset naming scheme
+3. Files are verified against provided signatures
+4. Verified plugins are stored in R2 with metadata
+### Asset Naming Scheme
+Sources must provide their asset information via the `/federation-info` endpoint:
+```json
+{
+  "assetInfo": {
+    "domain": "https://assets.example.com",
+    "namingScheme": "plugins/author/slug/slug.zip"
+  }
+}
+```
+## Plugin Mirroring
+### Mirroring Process
+1. Source plugins are discovered via the `/author-data` endpoint
+2. Plugin files are downloaded using the source's asset naming scheme
+3. Files are verified against provided signatures
+4. Verified plugins are stored in R2 with metadata
+### Asset Naming Scheme
+Sources must provide their asset information via the `/federation-info` endpoint:
+```json
+{
+  "assetInfo": {
+    "domain": "https://assets.example.com",
+    "namingScheme": "plugins/author/slug/slug.zip"
+  }
+}
+```
+
+## Subscription Management
+### Subscribing to Sources
+
+```bash
+curl -X POST https://your-federation.workers.dev/federation/subscribe \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sourceId": "author@plugins.example.com",
+    "filters": {
+      "tags": ["utilities", "productivity"]
+    }
+  }'
+```
+
+### Sync Process
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant W as Worker
+    participant DO as Federation DO
+    participant PP as Plugin Publisher
+    participant R2 as R2 Storage
+    participant SQL as SQLite DB
+    C->>W: POST /federation/subscribe
+    W->>DO: Handle Subscribe Request
+    
+    DO->>SQL: Check Source Status
+    
+    alt Source Verified
+        DO->>PP: GET /author-data
+        PP-->>DO: Return Plugin List
+        
+        loop For Each Plugin
+            DO->>DO: Apply Subscription Filters
+            
+            alt Plugin Matches Filters
+                DO->>PP: Download Plugin
+                DO->>DO: Verify Plugin Signature
+                DO->>R2: Store Plugin File
+                DO->>SQL: Record in mirrored_plugins
+                DO->>SQL: Update version_updates
+            end
+        end
+        
+        DO->>SQL: Record Subscription
+        DO->>SQL: Update Last Sync Time
+    else Source Not Verified
+        DO-->>W: Return Error
+    end
+    
+    W-->>C: Return Subscription Status
+```
+
 
 ## Database Schema
 
