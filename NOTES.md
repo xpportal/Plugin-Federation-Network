@@ -6,8 +6,9 @@ graph TD
     classDef publisher fill:#22c55e,color:#191919,stroke:#333,stroke-width:2px
     classDef consumer fill:#0ea5e9,color:white,stroke:#333,stroke-width:2px
     classDef marketplace fill:#f59e0b,color:#191919,stroke:#333,stroke-width:2px
+    classDef standalone fill:#ef4444,color:white,stroke:#333,stroke-width:2px
 
-    subgraph Network["Plugin Federation Network"]
+    subgraph Federation["Plugin Federation Network"]
         FN1[Federation Node 1]:::federation
         FN2[Federation Node 2]:::federation
         FN3[Federation Node 3]:::federation
@@ -17,44 +18,55 @@ graph TD
         FN1 <--> FN3
     end
 
-    subgraph Publishers["Plugin Publishers"]
-        PP1[WordPress Indie Publisher]:::publisher
-        PP2[Agency Publisher]:::publisher
-        PP3[Plugin Publisher]:::publisher
-        PP4[Theme Publisher]:::publisher
+    subgraph Federated["Federated Plugin Publishers"]
+        PP1[WordPress Publisher]:::publisher
+        PP2[Custom Shop Publisher]:::publisher
+        PP3[Theme Publisher]:::publisher
+    end
+
+    subgraph Standalone["Standalone Plugin Publishers"]
+        SP1[Independent Publisher 1]:::standalone
+        SP2[Independent Publisher 2]:::standalone
+        SP3[Independent Publisher 3]:::standalone
+
+        subgraph SP1_Components["Publisher 1 Components"]
+            SP1_R2[(R2 Storage)]
+            SP1_DO[Registry DO]
+            SP1_KV[(KV Store)]
+            SP1_AUTH[Auth DO]
+        end
     end
 
     subgraph Consumers["Plugin Consumers"]
         C1[WordPress Site]:::consumer
         C2[eCommerce Platform]:::consumer
         C3[Development Agency]:::consumer
-        C4[Plugin Marketplace]:::marketplace
+        C4[Theme Marketplace]:::marketplace
     end
 
-    %% Publisher connections
-    PP1 -->|Publish| FN1
-    PP2 -->|Publish| FN2
-    PP3 -->|Publish| FN2
-    PP4 -->|Publish| FN3
-
-    %% Consumer connections
-    FN1 -->|Subscribe| C1
-    FN2 -->|Subscribe| C2
-    FN2 -->|Subscribe| C3
-    FN3 -->|Subscribe| C4
-
+    %% Standalone connections
+    SP1 --> SP1_Components
+    C1 --> SP1
+    C2 --> SP2
+    
+    %% Federation connections
+    PP1 -->|"Optional Federation"| FN1
+    PP2 -->|"Optional Federation"| FN2
+    PP3 -->|"Optional Federation"| FN3
+    
+    %% Federation consumer connections
+    FN1 -->|"Subscribe"| C3
+    FN2 -->|"Subscribe"| C4
+    
     %% Cross-node syncing
-    PP1 -.->|Mirror| FN2
-    PP2 -.->|Mirror| FN3
-    PP3 -.->|Mirror| FN1
-    PP4 -.->|Mirror| FN1
-
-    %% Consumer cross-subscription
-    FN3 -.->|Cross-Subscribe| C1
-    FN1 -.->|Cross-Subscribe| C2
+    PP1 -.->|"Mirror"| FN2
+    PP2 -.->|"Mirror"| FN3
+    PP3 -.->|"Mirror"| FN1
 
     %% Add explanatory notes
     note1[Solid lines = direct connections]
     note2[Dotted lines = federation syncing]
+    note3[Publishers can operate standalone or join federation]
     note1 -.-> note2
+    note2 -.-> note3
 ```
