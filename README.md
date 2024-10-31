@@ -23,8 +23,8 @@ graph LR
     end
 
     subgraph Federated["Federated Plugin Publishers"]
-        PP1[WordPress Publisher]:::publisher
-        PP2[Custom Shop Publisher]:::publisher
+        PP1[Plugin Publisher]:::publisher
+        PP2[pluginpublisher.com]:::publisher
         PP3[Theme Publisher]:::publisher
     end
 
